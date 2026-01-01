@@ -1,4 +1,4 @@
-# ResonanceTransformer 🐍
+# ResonanceTransformer
 
 **A Sparse Transformer with Tunable Emergent Subnetworks**
 
@@ -32,7 +32,6 @@ Notes:
 - Advanced modes shine in longer runs (1000+ steps) or larger models—etch_memory prevents late collapse.
 - Timing: Sparse forward passes ~5–10% faster on CPU (more with sparse kernels).
 - Results stable across seeds; tune decay rate higher for faster ramp in demos.
-- Community runs on real datasets (e.g., LM, copy task, GLUE subsets) encouraged for richer benchmarks.
 
 ## Installation
 

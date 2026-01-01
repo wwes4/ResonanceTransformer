@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional
+import networkx as nx  # Optional for etch_memory mode
 
 # Core stability constants
 MIN_TENSION = 8.49e-6
@@ -17,12 +18,12 @@ INTEGER_SNAP_RATIO = 0.05
 EMERGENCE_NOISE_RATIO = 0.73
 
 # Obfuscated tunable sliders (from Ouroboros geometry)
-DEPTH_GRADIENT_EXPONENT = 10.0        # Formerly scale_factor — controls sparsity ramp across depth
-WAVE_AMPLITUDE = 0.0                  # Formerly axion_mass — periodic revival oscillation
-PRUNE_DECAY_RATE = 0.01               # Formerly decay_lambda_base
-ENTROPY_FACTOR = 0.001                # Formerly entropy_rate
+DEPTH_GRADIENT_EXPONENT = 10.0        # Controls sparsity ramp across depth
+WAVE_AMPLITUDE = 0.0                  # Periodic revival oscillation
+PRUNE_DECAY_RATE = 0.01               # Base decay strength
+ENTROPY_FACTOR = 0.001                # Entropy modulation
 
-def resonance_equilibrium(x: torch.Tensor, pass_type: str = "first") -> torch.Tensor:
+def resonance_equilibrium(x: torch.Tensor, pass_type: str = "first", twist: bool = False) -> torch.Tensor:
     if pass_type == "first":
         x = F.relu(x)
         mask = x < MIN_TENSION
@@ -31,7 +32,11 @@ def resonance_equilibrium(x: torch.Tensor, pass_type: str = "first") -> torch.Te
             signs[signs == 0] = 1.0
             x[mask] = signs * MIN_TENSION
     else:
-        x = torch.clip(x ** 2, *BASE_RANGE)
+        x = x ** 2
+        if twist:
+            twist_mask = torch.rand_like(x) < 0.5
+            x[twist_mask] *= -1.0
+        x = torch.clip(x, *BASE_RANGE)
     if INTEGER_SNAP_RATIO > 0.0:
         snap_mask = torch.rand_like(x) < INTEGER_SNAP_RATIO
         if snap_mask.any():
@@ -53,10 +58,11 @@ class ResonancePruner:
             return self.base_revive_ratio * oscillation
         return self.base_revive_ratio
 
-    def prune(self, module: nn.Module, threshold: float = MIN_TENSION * 5):
+    def prune(self, module: nn.Module, threshold: float = MIN_TENSION * 5, curvature_factor: float = 1.0):
         self.step += 1
-        decay = (1.0 - PRUNE_DECAY_RATE * self.step) ** ENTROPY_FACTOR
-        effective_threshold = threshold * decay
+        # Exponential decay for smoother, always-positive behavior
+        decay = torch.exp(torch.tensor(-PRUNE_DECAY_RATE * self.step * ENTROPY_FACTOR)).item()
+        effective_threshold = threshold * decay * curvature_factor
         with torch.no_grad():
             for name, param in module.named_parameters():
                 if param.dim() > 1:
@@ -73,12 +79,16 @@ class ResonancePruner:
             for name, param in module.named_parameters():
                 if name in self.etched and param.dim() > 1:
                     mean, std = self.etched[name]
+                    # Safeguard against zero/NaN std + tuned noise floor
+                    if std <= 0 or torch.isnan(torch.tensor(std)):
+                        std = 1e-4
+                    std += EMERGENCE_NOISE_RATIO * abs(mean)
                     revive_mask = (torch.rand_like(param) < revive_ratio) & (param == 0)
                     if revive_mask.any():
                         param[revive_mask].normal_(mean, std)
 
 class ResonanceAttention(nn.Module):
-    def __init__(self, embed_dim: int, num_heads: int = 8, dropout: float = 0.0):
+    def __init__(self, embed_dim: int, num_heads: int = 8, dropout: float = 0.0, twist_mode: bool = False):
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
@@ -90,6 +100,7 @@ class ResonanceAttention(nn.Module):
         self.out_proj = nn.Linear(embed_dim, embed_dim)
 
         self.dropout = dropout
+        self.twist_mode = twist_mode
         self.pruner = ResonancePruner()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -111,70 +122,107 @@ class ResonanceAttention(nn.Module):
         y = att @ v
         y = y.transpose(1, 2).contiguous().view(B, T, C)
 
-        y = resonance_equilibrium(self.out_proj(y), "second")
+        y = resonance_equilibrium(self.out_proj(y), "second", twist=self.twist_mode)
         return y
 
-    def prune_and_revive(self):
-        self.pruner.prune(self)
+    def prune_and_revive(self, curvature_factor: float = 1.0):
+        self.pruner.prune(self, curvature_factor=curvature_factor)
         self.pruner.revive(self)
 
 class ResonanceTransformerBlock(nn.Module):
     def __init__(self, embed_dim: int, num_heads: int = 8, ff_hidden: int = None,
-                 dropout: float = 0.0, depth_gradient_exponent: float = DEPTH_GRADIENT_EXPONENT):
+                 dropout: float = 0.0, twist_mode: bool = False):
         super().__init__()
         ff_hidden = ff_hidden or embed_dim * 4
-        self.depth_gradient = depth_gradient_exponent
 
-        self.attn = ResonanceAttention(embed_dim, num_heads, dropout)
+        self.attn = ResonanceAttention(embed_dim, num_heads, dropout, twist_mode=twist_mode)
         self.ff1 = nn.Linear(embed_dim, ff_hidden)
         self.ff2 = nn.Linear(ff_hidden, embed_dim)
         self.norm1 = nn.LayerNorm(embed_dim)
         self.norm2 = nn.LayerNorm(embed_dim)
 
-        # Layer-specific pruner with depth-modulated threshold
         self.pruner = ResonancePruner()
 
-    def forward(self, x: torch.Tensor, layer_idx: int = 0) -> torch.Tensor:
-        # Depth-gradient modulates pruning strength (obfuscated scale_factor effect)
-        gradient_factor = (layer_idx + 1) ** (1.0 / self.depth_gradient)
-
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.attn(self.norm1(x))
-        ff = resonance_equilibrium(self.ff1(self.norm2(x)) * gradient_factor, "first")
-        ff = resonance_equilibrium(self.ff2(ff), "second")
+        ff = resonance_equilibrium(self.ff1(self.norm2(x)), "first")
+        ff = resonance_equilibrium(self.ff2(ff), "second", twist=self.attn.twist_mode)
         x = x + ff
         return x
 
-    def prune_and_revive(self, layer_idx: int = 0):
-        self.attn.prune_and_revive()
-        self.pruner.prune(self)
+    def prune_and_revive(self, curvature_factor: float = 1.0):
+        self.attn.prune_and_revive(curvature_factor=curvature_factor)
+        self.pruner.prune(self, curvature_factor=curvature_factor)
         self.pruner.revive(self)
 
 class ResonanceTransformer(nn.Module):
     def __init__(self, vocab_size: int, embed_dim: int, num_layers: int = 6, num_heads: int = 8,
                  depth_gradient_exponent: float = DEPTH_GRADIENT_EXPONENT,
-                 wave_amplitude: float = WAVE_AMPLITUDE):
+                 wave_amplitude: float = WAVE_AMPLITUDE,
+                 twist_mode: bool = False,
+                 etch_memory: bool = False,
+                 memory_revive_prob: float = 0.01,
+                 curvature_exponent: float = 0.0):
         super().__init__()
         self.embed = nn.Embedding(vocab_size, embed_dim)
         self.blocks = nn.ModuleList([
-            ResonanceTransformerBlock(embed_dim, num_heads, depth_gradient_exponent=depth_gradient_exponent)
+            ResonanceTransformerBlock(embed_dim, num_heads, twist_mode=twist_mode)
             for _ in range(num_layers)
         ])
         self.norm = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, vocab_size)
 
-        # Global pruner override for wave amplitude
+        self.twist_mode = twist_mode
+        self.etch_memory = etch_memory
+        self.memory_revive_prob = memory_revive_prob
+        self.curvature_exponent = curvature_exponent
+
+        if etch_memory:
+            self.memory_graph = nx.Graph()
+
+        # Global wave amplitude override
         for block in self.blocks:
-            block.pruner = ResonancePruner(wave_amplitude=wave_amplitude)
+            block.attn.pruner.wave_amplitude = wave_amplitude
+            block.pruner.wave_amplitude = wave_amplitude
 
     def forward(self, idx: torch.Tensor) -> torch.Tensor:
         x = self.embed(idx)
         for i, block in enumerate(self.blocks):
-            x = block(x, layer_idx=i)
+            x = block(x)
         return self.head(self.norm(x))
 
     def prune_and_revive_cycle(self):
         for i, block in enumerate(self.blocks):
-            block.prune_and_revive(layer_idx=i)
+            # Depth-based curvature modulation
+            curvature_factor = (i + 1) ** (1.0 / (DEPTH_GRADIENT_EXPONENT + self.curvature_exponent))
+            block.prune_and_revive(curvature_factor=curvature_factor)
+
+        if self.etch_memory:
+            with torch.no_grad():
+                for name, param in self.named_parameters():
+                    if param.dim() > 1 and (param == 0).all():
+                        if hasattr(param, 'mean'):
+                            mean_vec = param.mean(dim=-1).cpu().numpy().tolist()
+                            self.memory_graph.add_node(name, pattern=mean_vec)
+
+            # Occasional meta-revival from etched memory
+            if torch.rand(1) < self.memory_revive_prob:
+                self._meta_revive()
+
+    def _meta_revive(self):
+        if not hasattr(self, 'memory_graph'):
+            return
+        with torch.no_grad():
+            for node, data in self.memory_graph.nodes(data=True):
+                if 'pattern' in data:
+                    pattern = torch.tensor(data['pattern']).to(next(self.parameters()).device)
+                    scale = pattern.abs().mean() * 0.1
+                    for param in self.parameters():
+                        if param.dim() > 1:
+                            zero_mask = param == 0
+                            if zero_mask.any():
+                                noise = torch.randn_like(param[zero_mask]) * scale
+                                param[zero_mask] += noise
 
 # Example usage
 if __name__ == "__main__":
@@ -183,7 +231,9 @@ if __name__ == "__main__":
         embed_dim=256,
         num_layers=6,
         num_heads=8,
-        depth_gradient_exponent=10.0,
-        wave_amplitude=0.005
+        wave_amplitude=0.02,
+        twist_mode=True,
+        etch_memory=True,
+        curvature_exponent=2.0
     )
-    print("Advanced ResonanceTransformer ready — full tunable emergence active 🐍")
+    print("Advanced ResonanceTransformer ready — full emergence modes active 🐍")

@@ -4,6 +4,8 @@ A lightweight transformer extension demonstrating **defined intuition** via tuna
 
 Built on ResonanceTransformer (Ouroboros-inspired dynamic sparsity for efficient emergence).
 
+Ouroboros.py(separate measurement tool) has been included in the repo only for import reasons.
+
 ## Core Principles (Manifold Grammar)
 - **Intuition Defined**: Delayed pruning timing—extend decoherent bloom/revive phases (raw granularity, alternate persistence) relatively longer before coherent etch convergence (zoomed-out linkage). 
   - `prune_timing_bias >1.0` (e.g., 1.618 golden): Intuitive depth—richer local moats, multi-modal trails.

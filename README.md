@@ -39,6 +39,20 @@ Intuitive Golden Delay (bias=1.618): Final sparsity ~0.324
   Avg pre-mask persistence (higher = richer interim depth): 0.916
 High Intuitive Depth (bias=2.33): Final sparsity ~0.324
 ```
+Local test-downstream demo
+```
+Classical Early Prune (bias=0.618) training...
+  Final sparsity: ~0.279 | Val perplexity: 22.06 (lower = better on ambiguity)
+
+Balanced (bias=1.0) training...
+  Final sparsity: ~0.279 | Val perplexity: 23.26 (lower = better on ambiguity)
+
+Intuitive Golden Delay (bias=1.618) training...
+  Final sparsity: ~0.279 | Val perplexity: 23.94 (lower = better on ambiguity)
+
+High Intuitive Depth (bias=2.33) training...
+  Final sparsity: ~0.279 | Val perplexity: 21.98 (lower = better on ambiguity)
+```
 Grok test results:
 
 (Small model, 20 intuition cycles per config; pre-mask persistence as interim depth proxy)

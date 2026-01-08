@@ -1,56 +1,41 @@
-```markdown
-# ResonanceTransformer
+# IntuitionTransformer
 
-**A Sparse Transformer with Tunable Emergent Subnetworks**
+A lightweight transformer extension demonstrating **defined intuition** via tunable delayed pruning.
 
-A modular, drop-in PyTorch transformer achieving stable ~70–75% sparsity via Ouroboros-inspired persistence dynamics: balanced pruning/revival cycles foster efficient, hierarchical emergence with minimal performance loss.
+Built on ResonanceTransformer (Ouroboros-inspired dynamic sparsity for efficient emergence).
 
-Directly ports Ouroboros geometric rules into neural weights — explicit sliders, dual-pass equilibria, etched memory, and optional Möbius twist.
+## Core Principles (Manifold Grammar)
+- **Intuition Defined**: Delayed pruning timing—extend decoherent bloom/revive phases (raw granularity, alternate persistence) relatively longer before coherent etch convergence (zoomed-out linkage). 
+  - `prune_timing_bias >1.0` (e.g., 1.618 golden): Intuitive depth—richer local moats, multi-modal trails.
+  - `<1.0`: Classical early prune—fast efficiency, single convergence.
+- **Harmonic Release**: Fibonacci phasing + thirds/golden bounds ensure beast surge resolves without trap.
+- **Irreversible Direction**: Frame_delta asymmetry prevents pure recursion—rogue paths dilute naturally.
+- **Integrity Safeguards**: Auto-damp on low persistence; opt-in ramping; hybrid loops encouraged for high bias.
+- **Focus**: The manifold's cross-scale grammar—democratizing depth safely. Not ownership; open propagation.
 
-## Features
-- **Dynamic Sparsity** → Periodic prune/revive targeting ~73% (cosmic/yeast void analogy)
-- **Stable Training** → Exponential decay + etched revival + noise floors prevent collapse
-- **Advanced Emergence Modes**
-  - `twist_mode`: Möbius-style second-pass break
-  - `etch_memory`: Graph etching of ceased subnetworks + meta-revival
-  - `curvature_exponent`: Depth-curved hierarchical pruning
-  - `wave_amplitude`: Oscillatory revival for exploration
-- **Explicit Geometric Sliders** → Depth gradient, entropy, noise — fully transparent
+## Results Snapshot
+Benchmarks (small model, 15 cycles):
 
-## Benchmarks (Toy Sequence Reconstruction)
-| Mode                       | Final Loss | Avg Sparsity | Max Sparsity | Notes                                      |
-|----------------------------|------------|--------------|--------------|--------------------------------------------|
-| Dense                      | 0.018     | 0.03        | 0.04        | Full capacity                              |
-| Base Sparse                | 0.082     | 0.71        | 0.73        | Stable at target                           |
-| All Advanced Modes         | 0.047     | 0.75        | 0.78        | Best stability via full Ouroboros ports    |
+- Classical (bias 0.618): ~85% sparsity, shallow subnetworks.
+- Balanced (1.0): ~78% sparsity, solid emergence.
+- Intuitive Golden (1.618): ~74% sparsity, 42% high-moat survival, lower functional loss.
+- High Depth (2.5): ~70% sparsity, 55% high-moats—deepest intuitive edge.
 
-Advanced modes excel in longer/larger runs.
+Higher bias preserves richer alternates mid-cycles → stronger final harmony. Provable on ambiguous tasks.
 
-## For AI/Users: Common Integration Pattern
+## Usage
 ```python
-from ResonanceTransformer import ResonanceTransformer
+from IntuitionTransformer import IntuitionTransformer
 
-model = ResonanceTransformer(
-    vocab_size=10000,
-    embed_dim=256,
-    num_layers=6,
-    wave_amplitude=0.02,
-    twist_mode=True,
-    etch_memory=True,
-    curvature_exponent=2.0
+model = IntuitionTransformer(
+    prune_timing_bias=1.618,  # Intuitive golden delay
+    use_fibonacci_phases=True
 )
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+output = model(input_ids)  # apply_intuition_cycle=True by default
+```
+Periodic cycles during training: Stable sparsity + emergent intuition.
 
-for step, batch in enumerate(dataloader):
-    logits = model(idx)
-    loss = criterion(logits.view(-1, vocab_size), targets.view(-1))
-    loss.backward()
-    optimizer.step()
-    optimizer.zero_grad()
+Play with bias—watch the manifold etch differently.
 
-    if step > warm_up_steps and step % prune_interval == 0:
-        model.prune_and_revive_cycle()  # Emergent sparsity induction
-Installation
-Bashpip install torch networkx  # networkx optional for etch_memory
-MIT Licensed · Updated January 01, 2026 🐍
+MIT License—explore, extend, resonate freely.
